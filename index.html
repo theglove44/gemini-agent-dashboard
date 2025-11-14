@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Team Dashboard</title>
+    <!-- 1. Load Tailwind CSS (This is the only dependency) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Basic styles for the app */
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        /* Add a "hidden" class for toggling */
+        .hidden { display: none; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-900">
+
+    <!-- App Shell -->
+    <div id="root" class="min-h-screen font-sans p-4 md:p-8">
+
+        <!-- Header Section -->
+        <header class="max-w-7xl mx-auto mb-8">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+                <div>
+                    <h1 class="text-3xl font-bold text-slate-800 flex items-center gap-2">
+                        <span class="text-indigo-600">📊</span> Team Performance
+                    </h1>
+                    <p id="team-member-count" class="text-slate-500 mt-1">Customer Support Alpha Team</p>
+                </div>
+                <div class="mt-4 md:mt-0 flex flex-wrap gap-3">
+                    <button id="btn-show-add-modal" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm hover:bg-indigo-700 transition">
+                        + Add New Member
+                    </button>
+                    <button class="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-md text-sm font-medium shadow-sm hover:bg-slate-50 transition">Export Report</button>
+                </div>
+            </div>
+
+            <!-- Team Overview Cards (Stats will be injected here) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div><p class="text-sm text-slate-500 font-medium">Avg Success</p><p id="stat-avg-success" class="text-2xl font-bold text-slate-800">0%</p></div>
+                    <div class="bg-indigo-50 p-3 rounded-full text-indigo-600"><span>📈</span></div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div><p class="text-sm text-slate-500 font-medium">Avg CSAT</p><p id="stat-avg-csat" class="text-2xl font-bold text-slate-800">0%</p></div>
+                    <div class="bg-emerald-50 p-3 rounded-full text-emerald-600"><span>⭐</span></div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div><p class="text-sm text-slate-500 font-medium">Avg AHT</p><p id="stat-avg-aht" class="text-2xl font-bold text-slate-800 font-mono">00:00</p></div>
+                    <div class="bg-blue-50 p-3 rounded-full text-blue-600"><span>🕔</span></div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div><p class="text-sm text-slate-500 font-medium">Active Objectives</p><p id="stat-avg-objectives" class="text-2xl font-bold text-slate-800">0</p></div>
+                    <div class="bg-amber-50 p-3 rounded-full text-amber-600"><span>🎯</span></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Grid - Agents (Cards will be injected here) -->
+        <main class="max-w-7xl mx-auto">
+            <div id="agent-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Agent cards will be dynamically inserted here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Detailed Modal (Hidden by default) -->
+    <div id="modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm hidden">
+        <div id="modal-content" class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <!-- Modal Header (Injected) -->
+            <div id="modal-header" class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center"></div>
+            
+            <!-- Modal Body (Injected) -->
+            <div id="modal-body" class="p-6 overflow-y-auto grid grid-cols-1 lg:grid-cols-2 gap-8"></div>
+        </div>
+    </div>
+
+
+    <!-- ============================================= -->
+    <!--          APPLICATION JAVASCRIPT               -->
+    <!-- ============================================= -->
+    <script>
+        // --- Data & State ---
+        const DATA_KEY = 'crmTeamData';
+        let teamData = [];
+        let currentAgent = null; // The agent being viewed/edited
+        let modalMode = 'view'; // 'view', 'edit', 'add'
+
+        const BLANK_AGENT = {
+            id: null,
+            name: "",
+            role: "Agent",
+            avatar: "??",
+            interactionSuccess: 75,
+            callHandling: 75,
+            correctActions: 75,
+            compliance: 90,
+            csat: 75,
+            avgTalkTime: "04:00",
+            avgHoldTime: "00:30",
+            avgWrapTime: "00:30",
+            objectives: []
+        };
+
+        const INITIAL_DATA = [
+            { id: 1, name: "Sarah Jenkins", role: "Senior Agent", avatar: "SJ", interactionSuccess: 92, callHandling: 88, correctActions: 95, compliance: 100, csat: 96, avgTalkTime: "03:10", avgHoldTime: "00:30", avgWrapTime: "00:35", objectives: ["Reduce AHT by 15s", "Mentor new hire"] },
+            { id: 2, name: "Michael Ross", role: "Agent", avatar: "MR", interactionSuccess: 78, callHandling: 82, correctActions: 80, compliance: 90, csat: 78, avgTalkTime: "04:50", avgHoldTime: "00:40", avgWrapTime: "00:50", objectives: ["Improve tone phrasing", "Complete compliance module"] },
+            { id: 3, name: "David Chen", role: "Agent", avatar: "DC", interactionSuccess: 88, callHandling: 95, correctActions: 92, compliance: 98, csat: 90, avgTalkTime: "04:00", avgHoldTime: "00:30", avgWrapTime: "00:30", objectives: ["Maintain CSAT > 90%"] },
+            { id: 4, name: "Emily Blunt", role: "Agent", avatar: "EB", interactionSuccess: 96, callHandling: 98, correctActions: 97, compliance: 100, csat: 98, avgTalkTime: "03:00", avgHoldTime: "00:15", avgWrapTime: "00:30", objectives: ["Aim for Team Lead role"] },
+            { id: 5, name: "James Wilson", role: "Junior Agent", avatar: "JW", interactionSuccess: 65, callHandling: 70, correctActions: 75, compliance: 85, csat: 64, avgTalkTime: "06:20", avgHoldTime: "01:00", avgWrapTime: "00:50", objectives: ["Shadow Sarah for calls", "Improve script adherence"] },
+            { id: 6, name: "Anita Patel", role: "Agent", avatar: "AP", interactionSuccess: 85, callHandling: 85, correctActions: 88, compliance: 95, csat: 84, avgTalkTime: "04:30", avgHoldTime: "00:30", avgWrapTime: "00:30", objectives: [] },
+            { id: 7, name: "Robert Ford", role: "Senior Agent", avatar: "RF", interactionSuccess: 91, callHandling: 90, correctActions: 94, compliance: 99, csat: 94, avgTalkTime: "03:30", avgHoldTime: "00:20", avgWrapTime: "00:40", objectives: ["Cross-train on Billing"] },
+            { id: 8, name: "Linda Martinez", role: "Agent", avatar: "LM", interactionSuccess: 82, callHandling: 78, correctActions: 85, compliance: 100, csat: 82, avgTalkTime: "04:30", avgHoldTime: "00:45", avgWrapTime: "00:30", objectives: ["Reduce after-call work"] },
+            { id: 9, name: "Tom Hiddleston", role: "Junior Agent", avatar: "TH", interactionSuccess: 72, callHandling: 75, correctActions: 80, compliance: 88, csat: 76, avgTalkTime: "05:10", avgHoldTime: "01:00", avgWrapTime: "00:50", objectives: ["Learn new CRM tools"] },
+        ];
+
+        // --- Utility Functions ---
+        const timeToSeconds = (timeStr) => {
+            if (!timeStr || !timeStr.includes(':')) return 0;
+            const parts = timeStr.split(':').map(Number);
+            if (parts.length !== 2 || isNaN(parts[0]) || isNaN(parts[1])) return 0;
+            return (parts[0] * 60) + parts[1];
+        };
+
+        const secondsToTime = (totalSeconds) => {
+            if (isNaN(totalSeconds) || totalSeconds < 0) return "00:00";
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        };
+
+        const getAHT = (agent) => {
+            if (!agent) return "00:00";
+            const talk = timeToSeconds(agent.avgTalkTime);
+            const hold = timeToSeconds(agent.avgHoldTime);
+            const wrap = timeToSeconds(agent.avgWrapTime);
+            return secondsToTime(talk + hold + wrap);
+        };
+        
+        const getAvatar = (name) => {
+            if (!name) return "??";
+            const parts = name.split(' ');
+            if (parts.length >= 2) {
+                return (parts[0][0] + parts[1][0]).toUpperCase();
+            }
+            if (name.length > 0) {
+                return (name[0] + (name[1] || '')).toUpperCase();
+            }
+            return "??";
+        }
+
+        // --- Data Functions ---
+        function loadData() {
+            try {
+                const storedData = localStorage.getItem(DATA_KEY);
+                if (storedData) {
+                    teamData = JSON.parse(storedData);
+                } else {
+                    teamData = INITIAL_DATA;
+                    saveData();
+                }
+            } catch (error) {
+                console.error("Could not load data:", error);
+                teamData = INITIAL_DATA;
+            }
+        }
+
+        function saveData() {
+            try {
+                localStorage.setItem(DATA_KEY, JSON.stringify(teamData));
+            } catch (error) {
+                console.error("Could not save data:", error);
+            }
+        }
+
+        // --- Render Functions ---
+
+        // Re-renders the main agent grid
+        function renderDashboard() {
+            const grid = document.getElementById('agent-grid');
+            if (!grid) return;
+            grid.innerHTML = ''; // Clear the grid
+
+            if (teamData.length === 0) {
+                grid.innerHTML = `<div class="col-span-1 md:col-span-2 lg:col-span-3 text-center text-slate-500 p-10 bg-white rounded-xl shadow-sm border border-slate-200">
+                    <span class="text-4xl">🤷‍♂️</span>
+                    <h3 class="text-xl font-semibold mt-4">No Team Members</h3>
+                    <p class="mt-1">Click the "+ Add New Member" button to get started.</p>
+                </div>`;
+            }
+
+            teamData.forEach(agent => {
+                const agentAHT = getAHT(agent);
+                const csatColor = agent.csat >= 90 ? 'text-emerald-600' : agent.csat >= 80 ? 'text-amber-600' : 'text-rose-600';
+                const successColor = agent.interactionSuccess >= 80 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700';
+
+                const cardHTML = `
+                    <div 
+                        data-agent-id="${agent.id}"
+                        class="agent-card bg-white rounded-xl shadow-sm border border-slate-200 p-6 cursor-pointer hover:shadow-md hover:border-indigo-200 transition group"
+                    >
+                        <div class="flex items-start justify-between mb-6">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 font-bold text-lg border border-slate-200">
+                                    ${agent.avatar}
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-lg text-slate-800 group-hover:text-indigo-600 transition-colors">${agent.name}</h3>
+                                    <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">${agent.role}</span>
+                                </div>
+                            </div>
+                            <div class="text-sm font-bold ${csatColor} flex items-center gap-1">
+                                <span class="text-lg">★</span> ${agent.csat}%
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-2 mb-4">
+                            <div class="flex flex-col items-center p-2 rounded w-full ${successColor}">
+                                <span class="font-bold text-lg">${agent.interactionSuccess}%</span>
+                                <span class="text-[10px] font-semibold uppercase">Interaction Success</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-sm text-slate-500 pt-4 border-t border-slate-100">
+                            <span class="flex items-center gap-1">🕔 AHT: <span class="font-mono font-medium text-slate-700">${agentAHT}</span></span>
+                            <span class="text-indigo-600 font-medium flex items-center gap-1 text-xs">
+                                View Details <span>📈</span>
+                            </span>
+                        </div>
+                    </div>
+                `;
+                grid.innerHTML += cardHTML;
+            });
+
+            // After rendering, attach new event listeners
+            attachCardListeners();
+        }
+
+        // Re-renders the header statistics
+        function renderHeaderStats() {
+            const total = teamData.length;
+            
+            // Update member count
+            document.getElementById('team-member-count').textContent = `Customer Support Alpha Team • ${total} Member${total === 1 ? '' : 's'}`;
+
+            if (total === 0) {
+                document.getElementById('stat-avg-success').textContent = `0%`;
+                document.getElementById('stat-avg-csat').textContent = `0%`;
+                document.getElementById('stat-avg-aht').textContent = `00:00`;
+                document.getElementById('stat-avg-objectives').textContent = `0`;
+                return;
+            }
+
+            const totalAHTSeconds = teamData.reduce((acc, curr) => {
+                return acc + timeToSeconds(curr.avgTalkTime) + timeToSeconds(curr.avgHoldTime) + timeToSeconds(curr.avgWrapTime);
+            }, 0);
+
+            const avgSuccess = Math.round(teamData.reduce((acc, curr) => acc + parseInt(curr.interactionSuccess || 0), 0) / total);
+            const avgCsat = Math.round(teamData.reduce((acc, curr) => acc + parseFloat(curr.csat || 0), 0) / total);
+            const avgAht = secondsToTime(Math.round(totalAHTSeconds / total));
+            const activeObjectives = teamData.reduce((acc, curr) => acc + (curr.objectives ? curr.objectives.length : 0), 0);
+            
+            document.getElementById('stat-avg-success').textContent = `${avgSuccess}%`;
+            document.getElementById('stat-avg-csat').textContent = `${avgCsat}%`;
+            document.getElementById('stat-avg-aht').textContent = avgAht;
+            document.getElementById('stat-avg-objectives').textContent = activeObjectives;
+        }
+
+        // Renders the content of the modal
+        function renderModal() {
+            const agent = (modalMode === 'add') ? BLANK_AGENT : currentAgent;
+            if (!agent) return;
+
+            const header = document.getElementById('modal-header');
+            const body = document.getElementById('modal-body');
+            const agentAHT = getAHT(agent);
+            
+            const isEditOrAdd = (modalMode === 'edit' || modalMode === 'add');
+            
+            let headerButtons = '';
+            if (modalMode === 'view') {
+                headerButtons = `
+                    <button id="btn-edit-metrics" class="flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm font-medium transition">
+                        <span>✏️</span> Edit Metrics
+                    </button>
+                `;
+            } else if (modalMode === 'edit') {
+                 headerButtons = `
+                    <button id="btn-delete-member" class="flex items-center gap-1 px-3 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 text-sm font-medium transition shadow-sm">
+                        <span>🗑️</span> Delete Member
+                    </button>
+                    <div class="flex-grow"></div>
+                    <button id="btn-cancel-edit" class="flex items-center gap-1 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-200 text-sm font-medium transition">
+                        <span>🔄</span> Cancel
+                    </button>
+                    <button id="btn-save-edit" class="flex items-center gap-1 px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-sm font-medium transition shadow-sm">
+                        <span>💾</span> Save Changes
+                    </button>
+                `;
+            } else if (modalMode === 'add') {
+                 headerButtons = `
+                    <button id="btn-cancel-edit" class="flex items-center gap-1 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-200 text-sm font-medium transition">
+                        <span>🔄</span> Cancel
+                    </button>
+                    <button id="btn-save-new-member" class="flex items-center gap-1 px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-medium transition shadow-sm">
+                        <span>💾</span> Save New Member
+                    </button>
+                `;
+            }
+
+            // --- Render Header ---
+            header.innerHTML = `
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-xl">
+                        ${modalMode === 'add' ? getAvatar(BLANK_AGENT.name) : agent.avatar}
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">${modalMode === 'add' ? 'Add New Member' : agent.name}</h2>
+                        <p class="text-slate-500 text-sm">${modalMode === 'add' ? 'Enter details below' : agent.role}</p>
+                    </div>
+                </div>
+                <div class="flex gap-2 items-center">
+                    ${headerButtons}
+                    ${modalMode !== 'add' ? '<div class="w-px bg-slate-300 mx-1 h-8 self-center"></div>' : ''}
+                    <button id="btn-close-modal" class="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition">
+                        <span class="text-2xl font-bold">&times;</span>
+                    </button>
+                </div>
+            `;
+
+            // --- Render Body ---
+            const objectivesList = (agent.objectives || []).map((obj, idx) => `
+                <li class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-start group">
+                    <span class="text-slate-700 text-sm leading-relaxed">${obj}</span>
+                    <button data-obj-index="${idx}" class="btn-delete-objective text-slate-300 hover:text-rose-500 p-1 opacity-0 group-hover:opacity-100 transition">
+                        <span class="font-bold">&times;</span>
+                    </button>
+                </li>
+            `).join('');
+
+            const noObjectivesHTML = `
+                <div class="flex-1 flex flex-col items-center justify-center text-slate-400 py-8">
+                    <span class="text-3xl mb-2 opacity-50">🧐</span>
+                    <p>No active objectives set.</p>
+                </div>
+            `;
+            
+            const progressBar = (value, label, color) => `
+                <div class="mb-3">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-xs font-medium text-slate-500">${label}</span>
+                        <span class="text-xs font-bold text-slate-700">${value}%</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-2.5">
+                        <div class="h-2.5 rounded-full ${color}" style="width: ${value}%"></div>
+                    </div>
+                </div>
+            `;
+            
+            const metricBox = (icon, label, value, subtext, color) => `
+                <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 flex flex-col items-center text-center h-full justify-center">
+                    <span class="text-2xl mb-2 ${color || ''}">${icon}</span>
+                    <span class="text-2xl font-bold text-slate-800">${value}</span>
+                    <span class="text-xs text-slate-500 uppercase tracking-wider mt-1">${label}</span>
+                    ${subtext ? `<span class="text-[10px] text-slate-400 mt-1">${subtext}</span>` : ''}
+                </div>
+            `;
+
+            body.innerHTML = `
+                <!-- Left Column: Metrics -->
+                <div class="space-y-6">
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <span class="text-indigo-600">📊</span> ${modalMode === 'add' ? 'Member Details' : 'Performance Metrics'}
+                    </h3>
+                    
+                    <!-- View Mode -->
+                    <div id="metric-view" class="${isEditOrAdd ? 'hidden' : ''}">
+                        <div class="grid grid-cols-2 gap-4">
+                           ${metricBox('⭐', 'CSAT Score', `${agent.csat}%`, 'Target: 90%', 'text-amber-500')}
+                           ${metricBox('🕔', 'Total AHT', agentAHT, 'Talk + Hold + Wrap', 'text-blue-500')}
+                        </div>
+                        <div class="grid grid-cols-3 gap-3 mt-4">
+                          ${metricBox('💬', 'Avg Talk', agent.avgTalkTime, '', 'text-emerald-600')}
+                          ${metricBox('⏸️', 'Avg Hold', agent.avgHoldTime, '', 'text-rose-600')}
+                          ${metricBox('✍️', 'Avg Wrap', agent.avgWrapTime, '', 'text-slate-500')}
+                        </div>
+                        <div class="bg-slate-50 p-5 rounded-xl border border-slate-100 space-y-4 mt-6">
+                          ${progressBar(agent.interactionSuccess, 'Overall Interaction Success', 'bg-indigo-500')}
+                          ${progressBar(agent.callHandling, 'Call Handling Quality', 'bg-blue-500')}
+                          ${progressBar(agent.correctActions, 'Correct Actions', 'bg-emerald-500')}
+                          ${progressBar(agent.compliance, 'Compliance Adherence', 'bg-purple-500')}
+                        </div>
+                    </div>
+
+                    <!-- Edit/Add Mode -->
+                    <div id="metric-edit" class="bg-slate-50 p-5 rounded-xl border border-indigo-200 shadow-inner ${isEditOrAdd ? '' : 'hidden'}">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Full Name</label>
+                                <input id="edit-name" type="text" value="${agent.name}" class="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Role / Title</label>
+                                <input id="edit-role" type="text" value="${agent.role}" class="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                        <hr class="my-4 border-t border-slate-300">
+                        <div class="mb-4">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">CSAT Score (0-100)</label>
+                            <input id="edit-csat" type="number" value="${agent.csat}" class="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                        </div>
+                        <div class="grid grid-cols-3 gap-3">
+                           <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Talk Time</label>
+                                <input id="edit-talk" type="text" value="${agent.avgTalkTime}" placeholder="mm:ss" class="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                           </div>
+                           <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Hold Time</label>
+                                <input id="edit-hold" type="text" value="${agent.avgHoldTime}" placeholder="mm:ss" class="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                           </div>
+                           <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Wrap Time</label>
+                                <input id="edit-wrap" type="text" value="${agent.avgWrapTime}" placeholder="mm:ss" class="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                           </div>
+                        </div>
+                        <hr class="my-6 border-t border-slate-300">
+                        <div classs="space-y-2">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Interaction Success %</label>
+                            <input id="edit-success" type="number" value="${agent.interactionSuccess}" class="w-full border border-slate-300 rounded px-3 py-2 text-sm mb-3">
+                            
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Call Handling Quality %</label>
+                            <input id="edit-handling" type="number" value="${agent.callHandling}" class="w-full border border-slate-300 rounded px-3 py-2 text-sm mb-3">
+                            
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Correct Actions %</label>
+                            <input id="edit-actions" type="number" value="${agent.correctActions}" class="w-full border border-slate-300 rounded px-3 py-2 text-sm mb-3">
+                            
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Compliance Adherence %</label>
+                            <input id="edit-compliance" type="number" value="${agent.compliance}" class="w-full border border-slate-300 rounded px-3 py-2 text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Objectives -->
+                <div class="flex flex-col h-full ${modalMode === 'edit' ? 'opacity-50 pointer-events-none grayscale' : ''}">
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                        <span>🎯</span> Objectives & Focus Areas
+                    </h3>
+                    <div class="flex-1 bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-col">
+                        <ul id="objectives-list-container" class="space-y-3 flex-1 overflow-y-auto max-h-[300px] pr-2">
+                            ${(agent.objectives || []).length === 0 ? noObjectivesHTML : objectivesList}
+                        </ul>
+                        <div class="mt-4 pt-4 border-t border-slate-200">
+                            <label class="text-xs font-bold text-slate-500 uppercase mb-2 block">Add New Objective</label>
+                            <div class="flex gap-2">
+                                <input id="input-new-objective" type="text" placeholder="E.g., Reduce silence gap..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <button id="btn-add-objective" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 flex items-center justify-center transition">
+                                    <span class="text-2xl font-bold">+</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Attach listeners for the new modal content
+            attachModalListeners();
+        }
+
+
+        // --- Event Listeners ---
+
+        // Attaches click listeners to the agent cards
+        function attachCardListeners() {
+            document.querySelectorAll('.agent-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const agentId = parseInt(card.dataset.agentId);
+                    currentAgent = teamData.find(a => a.id === agentId);
+                    if (currentAgent) {
+                        openModal('view');
+                    }
+                });
+            });
+        }
+
+        // Attaches listeners for all buttons inside the modal
+        function attachModalListeners() {
+            // Close button
+            document.getElementById('btn-close-modal')?.addEventListener('click', closeModal);
+            
+            // View/Edit/Add buttons
+            document.getElementById('btn-edit-metrics')?.addEventListener('click', () => openModal('edit'));
+            document.getElementById('btn-cancel-edit')?.addEventListener('click', () => {
+                // If we were editing, go back to view. If we were adding, just close.
+                if (modalMode === 'edit') {
+                    openModal('view');
+                } else {
+                    closeModal();
+                }
+            });
+            
+            document.getElementById('btn-save-edit')?.addEventListener('click', handleSaveEdits);
+            document.getElementById('btn-save-new-member')?.addEventListener('click', handleSaveNewMember);
+            document.getElementById('btn-delete-member')?.addEventListener('click', handleDeleteMember);
+            
+            
+            // Objective buttons (only if not in 'add' mode)
+            if (modalMode !== 'add') {
+                document.getElementById('btn-add-objective')?.addEventListener('click', handleAddObjective);
+                document.querySelectorAll('.btn-delete-objective').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const index = parseInt(e.currentTarget.dataset.objIndex);
+                        handleDeleteObjective(index);
+                    });
+                });
+            }
+        }
+        
+        // Attaches listeners for header buttons
+        function attachHeaderListeners() {
+             document.getElementById('btn-show-add-modal').addEventListener('click', () => {
+                openModal('add');
+            });
+        }
+
+        // --- Modal Actions ---
+
+        function openModal(mode) {
+            modalMode = mode;
+            
+            if (mode === 'add') {
+                // Create a fresh blank agent for the form
+                currentAgent = {...BLANK_AGENT};
+            }
+            // if mode is 'view' or 'edit', currentAgent is already set from card click
+
+            renderModal(); // Render the modal based on the new mode
+            document.getElementById('modal-backdrop').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-backdrop').classList.add('hidden');
+            currentAgent = null;
+            modalMode = 'view';
+        }
+        
+        function getAgentDataFromForm() {
+            const name = document.getElementById('edit-name').value;
+            return {
+                name: name,
+                role: document.getElementById('edit-role').value,
+                avatar: getAvatar(name), // Auto-generate avatar
+                csat: parseInt(document.getElementById('edit-csat').value) || 0,
+                avgTalkTime: document.getElementById('edit-talk').value,
+                avgHoldTime: document.getElementById('edit-hold').value,
+                avgWrapTime: document.getElementById('edit-wrap').value,
+                interactionSuccess: parseInt(document.getElementById('edit-success').value) || 0,
+                callHandling: parseInt(document.getElementById('edit-handling').value) || 0,
+                correctActions: parseInt(document.getElementById('edit-actions').value) || 0,
+                compliance: parseInt(document.getElementById('edit-compliance').value) || 0,
+            };
+        }
+
+        function handleSaveEdits() {
+            // Read all values from the edit form
+            const updatedAgent = {
+                ...currentAgent, // Keep ID and objectives
+                ...getAgentDataFromForm()
+            };
+
+            // Update the main teamData array
+            teamData = teamData.map(agent =>
+                agent.id === updatedAgent.id ? updatedAgent : agent
+            );
+            currentAgent = updatedAgent; // Update the globally selected agent
+            
+            saveAndRefresh();
+            openModal('view'); // Go back to view mode
+        }
+        
+        function handleSaveNewMember() {
+            const newAgentData = getAgentDataFromForm();
+            
+            // Find max ID and add 1
+            const maxId = teamData.reduce((max, agent) => Math.max(max, agent.id), 0);
+            
+            const newAgent = {
+                ...BLANK_AGENT, // Start with defaults
+                ...newAgentData, // Apply form data
+                id: maxId + 1, // Assign new unique ID
+                objectives: [] // Start with no objectives
+            };
+            
+            teamData.push(newAgent);
+            saveAndRefresh();
+            closeModal();
+        }
+        
+        function handleDeleteMember() {
+            // Basic confirmation to prevent accidental clicks
+            if (confirm(`Are you sure you want to delete ${currentAgent.name}? This action cannot be undone.`)) {
+                teamData = teamData.fiter(agent => agent.id !== currentAgent.id);
+                saveAndRefresh();
+                closeModal();
+            }
+        }
+
+        function handleAddObjective() {
+            const input = document.getElementById('input-new-objective');
+            if (!input || !input.value.trim() || !currentAgent) return;
+
+            const newObjectives = [...(currentAgent.objectives || []), input.value.trim()];
+            currentAgent.objectives = newObjectives;
+
+            // Update the main data array
+            teamData = teamData.map(agent => 
+                agent.id === currentAgent.id ? currentAgent : agent
+            );
+            
+            saveAndRefresh();
+            renderModal(); // Re-render the modal
+        }
+
+        function handleDeleteObjective(indexToDelete) {
+            const newObjectives = (currentAgent.objectives || []).filter((_, idx) => idx !== indexToDelete);
+            currentAgent.objectives = newObjectives;
+
+            // Update the main data array
+            teamData = teamData.map(agent => 
+                agent.id === currentAgent.id ? currentAgent : agent
+            );
+            
+            saveAndRefresh();
+            renderModal(); // Re-render the modal
+        }
+        
+        // Helper to save and refresh all UI parts
+        function saveAndRefresh() {
+            saveData();
+            renderDashboard();
+            renderHeaderStats();
+        }
+
+
+        // --- Initial Application Start ---
+        function startApp() {
+            loadData();
+            renderDashboard();
+            renderHeaderStats();
+            attachHeaderListeners();
+        }
+        
+        // Run the app once the document is ready
+        document.addEventListener('DOMContentLoaded', startApp);
+
+    </script>
+</body>
+</html>
