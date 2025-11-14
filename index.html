@@ -596,7 +596,7 @@
         function handleDeleteMember() {
             // Basic confirmation to prevent accidental clicks
             if (confirm(`Are you sure you want to delete ${currentAgent.name}? This action cannot be undone.`)) {
-                teamData = teamData.fiter(agent => agent.id !== currentAgent.id);
+                teamData = teamData.filter(agent => agent.id !== currentAgent.id);
                 saveAndRefresh();
                 closeModal();
             }
