@@ -41,9 +41,9 @@
                     <div><p class="text-sm text-slate-500 font-medium group-hover:text-indigo-600 transition-colors">Avg Success</p><p id="stat-avg-success" class="text-2xl font-bold text-slate-800 group-hover:text-indigo-700 transition-colors">0%</p></div>
                     <div class="bg-indigo-50 p-3 rounded-full text-indigo-600 group-hover:bg-indigo-100 transition-colors"><span>📈</span></div>
                 </div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
-                    <div><p class="text-sm text-slate-500 font-medium">Avg CSAT</p><p id="stat-avg-csat" class="text-2xl font-bold text-slate-800">0%</p></div>
-                    <div class="bg-emerald-50 p-3 rounded-full text-emerald-600"><span>⭐</span></div>
+                <div id="avg-csat-card" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between cursor-pointer hover:shadow-md hover:border-emerald-200 hover:bg-emerald-50 transition-all duration-200 group">
+                    <div><p class="text-sm text-slate-500 font-medium group-hover:text-emerald-600 transition-colors">Avg CSAT</p><p id="stat-avg-csat" class="text-2xl font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">0%</p></div>
+                    <div class="bg-emerald-50 p-3 rounded-full text-emerald-600 group-hover:bg-emerald-100 transition-colors"><span>⭐</span></div>
                 </div>
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
                     <div><p class="text-sm text-slate-500 font-medium">Avg AHT</p><p id="stat-avg-aht" class="text-2xl font-bold text-slate-800 font-mono">00:00</p></div>
@@ -99,6 +99,36 @@
             <!-- Modal Body -->
             <div class="p-6 overflow-y-auto flex-1">
                 <div id="team-comparison-chart" class="space-y-4">
+                    <!-- Chart will be dynamically inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CSAT Comparison Modal (Hidden by default) -->
+    <div id="csat-comparison-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-emerald-50 to-teal-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-bold text-xl">
+                        ⭐
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">Team CSAT Comparison</h2>
+                        <p class="text-slate-500 text-sm">Customer Satisfaction Scores - Sorted by Performance</p>
+                    </div>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <button id="btn-close-csat-comparison-modal" class="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition">
+                        <span class="text-2xl font-bold">&times;</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="p-6 overflow-y-auto flex-1">
+                <div id="csat-comparison-chart" class="space-y-4">
                     <!-- Chart will be dynamically inserted here -->
                 </div>
             </div>
@@ -243,6 +273,72 @@
 
         const closeTeamComparisonModal = () => {
             document.getElementById('comparison-modal-backdrop').classList.add('hidden');
+        };
+
+        // --- CSAT Comparison Functions ---
+        const getSortedTeamMembersByCSAT = () => {
+            return [...teamData].sort((a, b) => a.csat - b.csat);
+        };
+
+        const getCSATColor = (csat) => {
+            if (csat < 80) return 'bg-rose-500';
+            if (csat < 90) return 'bg-amber-500';
+            return 'bg-emerald-500';
+        };
+
+        const getCSATTextColor = (csat) => {
+            if (csat < 80) return 'text-rose-600';
+            if (csat < 90) return 'text-amber-600';
+            return 'text-emerald-600';
+        };
+
+        const renderCSATComparisonChart = () => {
+            const chartContainer = document.getElementById('csat-comparison-chart');
+            if (!chartContainer) return;
+
+            const sortedMembers = getSortedTeamMembersByCSAT();
+            const maxCSAT = Math.max(...sortedMembers.map(m => m.csat));
+
+            const chartHTML = sortedMembers.map((member, index) => {
+                const barWidth = (member.csat / maxCSAT) * 100;
+                const colorClass = getCSATColor(member.csat);
+                const textColorClass = getCSATTextColor(member.csat);
+                
+                return `
+                    <div class="flex items-center gap-4 p-3 rounded-lg hover:bg-slate-50 transition-colors group">
+                        <div class="flex-shrink-0 w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 font-bold text-sm border border-slate-200 group-hover:border-emerald-300 transition-colors">
+                            ${member.avatar}
+                        </div>
+                        <div class="flex-shrink-0 w-32">
+                            <div class="font-semibold text-slate-800 group-hover:text-emerald-600 transition-colors">${member.name}</div>
+                            <div class="text-xs text-slate-500">${member.role}</div>
+                        </div>
+                        <div class="flex-1 relative">
+                            <div class="w-full bg-slate-200 rounded-full h-8 overflow-hidden">
+                                <div class="h-full ${colorClass} rounded-full flex items-center justify-end pr-3 transition-all duration-500 hover:opacity-90" 
+                                     style="width: ${barWidth}%">
+                                    <span class="text-white font-bold text-sm">${member.csat}%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-shrink-0 text-right">
+                            <div class="font-bold ${textColorClass} text-lg">${member.csat}%</div>
+                            <div class="text-xs text-slate-500">CSAT Score</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            chartContainer.innerHTML = chartHTML;
+        };
+
+        const openCSATComparisonModal = () => {
+            renderCSATComparisonChart();
+            document.getElementById('csat-comparison-modal-backdrop').classList.remove('hidden');
+        };
+
+        const closeCSATComparisonModal = () => {
+            document.getElementById('csat-comparison-modal-backdrop').classList.add('hidden');
         };
 
         // --- Data Functions ---
@@ -618,13 +714,25 @@
             // Average success card click listener
             document.getElementById('avg-success-card').addEventListener('click', openTeamComparisonModal);
             
+            // Average CSAT card click listener
+            document.getElementById('avg-csat-card').addEventListener('click', openCSATComparisonModal);
+            
             // Team comparison modal listeners
             document.getElementById('btn-close-comparison-modal').addEventListener('click', closeTeamComparisonModal);
             
-            // Close modal when clicking backdrop
+            // CSAT comparison modal listeners
+            document.getElementById('btn-close-csat-comparison-modal').addEventListener('click', closeCSATComparisonModal);
+            
+            // Close modals when clicking backdrop
             document.getElementById('comparison-modal-backdrop').addEventListener('click', (e) => {
                 if (e.target.id === 'comparison-modal-backdrop') {
                     closeTeamComparisonModal();
+                }
+            });
+            
+            document.getElementById('csat-comparison-modal-backdrop').addEventListener('click', (e) => {
+                if (e.target.id === 'csat-comparison-modal-backdrop') {
+                    closeCSATComparisonModal();
                 }
             });
         }
