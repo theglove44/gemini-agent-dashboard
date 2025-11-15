@@ -45,9 +45,9 @@
                     <div><p class="text-sm text-slate-500 font-medium group-hover:text-emerald-600 transition-colors">Avg CSAT</p><p id="stat-avg-csat" class="text-2xl font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">0%</p></div>
                     <div class="bg-emerald-50 p-3 rounded-full text-emerald-600 group-hover:bg-emerald-100 transition-colors"><span>⭐</span></div>
                 </div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
-                    <div><p class="text-sm text-slate-500 font-medium">Avg AHT</p><p id="stat-avg-aht" class="text-2xl font-bold text-slate-800 font-mono">00:00</p></div>
-                    <div class="bg-blue-50 p-3 rounded-full text-blue-600"><span>🕔</span></div>
+                <div id="avg-aht-card" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between cursor-pointer hover:shadow-md hover:border-blue-200 hover:bg-blue-50 transition-all duration-200 group">
+                    <div><p class="text-sm text-slate-500 font-medium group-hover:text-blue-600 transition-colors">Avg AHT</p><p id="stat-avg-aht" class="text-2xl font-bold text-slate-800 font-mono group-hover:text-blue-700 transition-colors">00:00</p></div>
+                    <div class="bg-blue-50 p-3 rounded-full text-blue-600 group-hover:bg-blue-100 transition-colors"><span>🕔</span></div>
                 </div>
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
                     <div><p class="text-sm text-slate-500 font-medium">Active Objectives</p><p id="stat-avg-objectives" class="text-2xl font-bold text-slate-800">0</p></div>
@@ -129,6 +129,36 @@
             <!-- Modal Body -->
             <div class="p-6 overflow-y-auto flex-1">
                 <div id="csat-comparison-chart" class="space-y-4">
+                    <!-- Chart will be dynamically inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AHT Comparison Modal (Hidden by default) -->
+    <div id="aht-comparison-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-xl">
+                        🕔
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">Team AHT Comparison</h2>
+                        <p class="text-slate-500 text-sm">Average Handle Times - Sorted by Efficiency</p>
+                    </div>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <button id="btn-close-aht-comparison-modal" class="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition">
+                        <span class="text-2xl font-bold">&times;</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="p-6 overflow-y-auto flex-1">
+                <div id="aht-comparison-chart" class="space-y-4">
                     <!-- Chart will be dynamically inserted here -->
                 </div>
             </div>
@@ -339,6 +369,78 @@
 
         const closeCSATComparisonModal = () => {
             document.getElementById('csat-comparison-modal-backdrop').classList.add('hidden');
+        };
+
+        // --- AHT Comparison Functions ---
+        const getSortedTeamMembersByAHT = () => {
+            return [...teamData].sort((a, b) => {
+                const ahtA = timeToSeconds(getAHT(a));
+                const ahtB = timeToSeconds(getAHT(b));
+                return ahtA - ahtB; // Sort by AHT (fastest to slowest)
+            });
+        };
+
+        const getAHTColor = (ahtSeconds) => {
+            if (ahtSeconds < 240) return 'bg-emerald-500'; // < 4:00 = excellent
+            if (ahtSeconds < 330) return 'bg-amber-500'; // 4:00-5:30 = meeting expectations
+            return 'bg-rose-500'; // > 5:30 = needs improvement
+        };
+
+        const getAHTTextColor = (ahtSeconds) => {
+            if (ahtSeconds < 240) return 'text-emerald-600';
+            if (ahtSeconds < 330) return 'text-amber-600';
+            return 'text-rose-600';
+        };
+
+        const renderAHTComparisonChart = () => {
+            const chartContainer = document.getElementById('aht-comparison-chart');
+            if (!chartContainer) return;
+
+            const sortedMembers = getSortedTeamMembersByAHT();
+            const maxAHT = Math.max(...sortedMembers.map(m => timeToSeconds(getAHT(m))));
+
+            const chartHTML = sortedMembers.map((member, index) => {
+                const memberAHT = getAHT(member);
+                const ahtSeconds = timeToSeconds(memberAHT);
+                const barWidth = (ahtSeconds / maxAHT) * 100;
+                const colorClass = getAHTColor(ahtSeconds);
+                const textColorClass = getAHTTextColor(ahtSeconds);
+                
+                return `
+                    <div class="flex items-center gap-4 p-3 rounded-lg hover:bg-slate-50 transition-colors group">
+                        <div class="flex-shrink-0 w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 font-bold text-sm border border-slate-200 group-hover:border-blue-300 transition-colors">
+                            ${member.avatar}
+                        </div>
+                        <div class="flex-shrink-0 w-32">
+                            <div class="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">${member.name}</div>
+                            <div class="text-xs text-slate-500">${member.role}</div>
+                        </div>
+                        <div class="flex-1 relative">
+                            <div class="w-full bg-slate-200 rounded-full h-8 overflow-hidden">
+                                <div class="h-full ${colorClass} rounded-full flex items-center justify-end pr-3 transition-all duration-500 hover:opacity-90" 
+                                     style="width: ${barWidth}%">
+                                    <span class="text-white font-bold text-sm">${memberAHT}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-shrink-0 text-right">
+                            <div class="font-bold ${textColorClass} text-lg font-mono">${memberAHT}</div>
+                            <div class="text-xs text-slate-500">AHT</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            chartContainer.innerHTML = chartHTML;
+        };
+
+        const openAHTComparisonModal = () => {
+            renderAHTComparisonChart();
+            document.getElementById('aht-comparison-modal-backdrop').classList.remove('hidden');
+        };
+
+        const closeAHTComparisonModal = () => {
+            document.getElementById('aht-comparison-modal-backdrop').classList.add('hidden');
         };
 
         // --- Data Functions ---
@@ -717,11 +819,17 @@
             // Average CSAT card click listener
             document.getElementById('avg-csat-card').addEventListener('click', openCSATComparisonModal);
             
+            // Average AHT card click listener
+            document.getElementById('avg-aht-card').addEventListener('click', openAHTComparisonModal);
+            
             // Team comparison modal listeners
             document.getElementById('btn-close-comparison-modal').addEventListener('click', closeTeamComparisonModal);
             
             // CSAT comparison modal listeners
             document.getElementById('btn-close-csat-comparison-modal').addEventListener('click', closeCSATComparisonModal);
+            
+            // AHT comparison modal listeners
+            document.getElementById('btn-close-aht-comparison-modal').addEventListener('click', closeAHTComparisonModal);
             
             // Close modals when clicking backdrop
             document.getElementById('comparison-modal-backdrop').addEventListener('click', (e) => {
@@ -733,6 +841,12 @@
             document.getElementById('csat-comparison-modal-backdrop').addEventListener('click', (e) => {
                 if (e.target.id === 'csat-comparison-modal-backdrop') {
                     closeCSATComparisonModal();
+                }
+            });
+            
+            document.getElementById('aht-comparison-modal-backdrop').addEventListener('click', (e) => {
+                if (e.target.id === 'aht-comparison-modal-backdrop') {
+                    closeAHTComparisonModal();
                 }
             });
         }
